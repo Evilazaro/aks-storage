@@ -60,7 +60,7 @@ log_success() {
 # Display usage information
 usage() {
     cat << EOF
-Usage: ${SCRIPT_NAME} <AZURE_ENV_NAME> <AZURE_LOCATION> <RESOURCE_GROUP> <SUBSCRIPTION_ID> <AKS_CLUSTER_NAME> <AKS_OIDC_ISSUER>
+Usage: ${SCRIPT_NAME} <AZURE_ENV_NAME> <AZURE_LOCATION> <RESOURCE_GROUP> <SUBSCRIPTION_ID> <AKS_CLUSTER_NAME> <AKS_OIDC_ISSUER> <IDENTITY_NAME> <IDENTITY_ID>
 
 Arguments:
     AZURE_ENV_NAME      Environment name for Azure deployment
@@ -69,17 +69,19 @@ Arguments:
     SUBSCRIPTION_ID     Azure subscription ID
     AKS_CLUSTER_NAME    Name of the AKS cluster
     AKS_OIDC_ISSUER     OIDC issuer URL from AKS cluster
+    IDENTITY_NAME       Name of the managed identity
+    IDENTITY_ID         Client ID of the managed identity
 
 Examples:
-    ${SCRIPT_NAME} dev eastus2 rg-aks-dev 12345678-1234-1234-1234-123456789012 my-aks-cluster https://eastus2.oic.prod-aks.azure.com/12345678-1234-1234-1234-123456789012/
+    ${SCRIPT_NAME} dev eastus2 rg-aks-dev 12345678-1234-1234-1234-123456789012 my-aks-cluster https://eastus2.oic.prod-aks.azure.com/12345678-1234-1234-1234-123456789012/ my-identity 87654321-4321-4321-4321-210987654321
 
 EOF
 }
 
 # Validate input parameters
 validate_parameters() {
-    if [[ $# -lt 6 ]]; then
-        log_error "Insufficient arguments provided (expected 6, got $#)"
+    if [[ $# -lt 8 ]]; then
+        log_error "Insufficient arguments provided (expected 8, got $#)"
         usage
         exit 1
     fi
@@ -90,6 +92,8 @@ validate_parameters() {
     local subscription_id="${4:-}"
     local aks_cluster_name="${5:-}"
     local aks_oidc_issuer="${6:-}"
+    local identity_name="${7:-}"
+    local identity_id="${8:-}"
 
     # Check for empty parameters
     local empty_params=()
@@ -99,6 +103,8 @@ validate_parameters() {
     [[ -z "${subscription_id}" ]] && empty_params+=("SUBSCRIPTION_ID")
     [[ -z "${aks_cluster_name}" ]] && empty_params+=("AKS_CLUSTER_NAME")
     [[ -z "${aks_oidc_issuer}" ]] && empty_params+=("AKS_OIDC_ISSUER")
+    [[ -z "${identity_name}" ]] && empty_params+=("IDENTITY_NAME")
+    [[ -z "${identity_id}" ]] && empty_params+=("IDENTITY_ID")
 
     if [[ ${#empty_params[@]} -gt 0 ]]; then
         log_error "The following parameters cannot be empty: ${empty_params[*]}"
@@ -119,6 +125,7 @@ check_prerequisites() {
     
     command -v az >/dev/null 2>&1 || missing_tools+=("azure-cli")
     command -v kubectl >/dev/null 2>&1 || missing_tools+=("kubectl")
+    command -v jq >/dev/null 2>&1 || missing_tools+=("jq")
     
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
         log_error "Missing required tools: ${missing_tools[*]}"
@@ -197,61 +204,6 @@ configure_kubectl() {
     fi
 }
 
-# Create user-assigned managed identity (idempotent)
-create_managed_identity() {
-    local identity_name="${1}"
-    local resource_group="${2}"
-    local location="${3}"
-    local subscription_id="${4}"
-    local env_name="${5}"
-    
-    log_info "Creating/verifying managed identity: ${identity_name}"
-    
-    # Check if identity already exists
-    if az identity show \
-        --name "${identity_name}" \
-        --resource-group "${resource_group}" \
-        --subscription "${subscription_id}" >/dev/null 2>&1; then
-        log_info "Managed identity '${identity_name}' already exists"
-    else
-        log_info "Creating managed identity '${identity_name}'"
-        if az identity create \
-            --name "${identity_name}" \
-            --resource-group "${resource_group}" \
-            --location "${location}" \
-            --subscription "${subscription_id}" \
-            --output none; then
-            log_success "Managed identity '${identity_name}' created successfully"
-        else
-            log_error "Failed to create managed identity"
-            exit 1
-        fi
-    fi
-    
-    # Retrieve client ID
-    local client_id
-    client_id=$(az identity show \
-        --resource-group "${resource_group}" \
-        --name "${identity_name}" \
-        --subscription "${subscription_id}" \
-        --query 'clientId' \
-        --output tsv)
-    
-    if [[ -z "${client_id}" ]]; then
-        log_error "Failed to retrieve client ID for managed identity"
-        exit 1
-    fi
-    
-    # Export to environment and update .env file
-    export USER_ASSIGNED_IDENTITY_NAME="${identity_name}"
-    export USER_ASSIGNED_CLIENT_ID="${client_id}"
-    
-    update_env_file "${env_name}" "USER_ASSIGNED_IDENTITY_NAME" "${identity_name}"
-    update_env_file "${env_name}" "USER_ASSIGNED_CLIENT_ID" "${client_id}"
-    
-    log_success "Managed identity configured with client ID: ${client_id:0:8}..."
-}
-
 # Create Kubernetes service account with workload identity annotation (idempotent)
 create_service_account() {
     local service_account_name="${1}"
@@ -283,7 +235,7 @@ create_service_account() {
         log_info "Creating service account '${service_account_name}'"
         
         # Create service account with workload identity annotation
-        cat <<EOF | kubectl apply -f -
+        if cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -292,8 +244,7 @@ metadata:
   name: "${service_account_name}"
   namespace: "${namespace}"
 EOF
-        
-        if [[ $? -eq 0 ]]; then
+        then
             log_success "Service account '${service_account_name}' created successfully"
         else
             log_error "Failed to create service account"
@@ -360,8 +311,15 @@ create_federated_credential() {
 create_aks_storage_class() {
         
     log_info "Creating/updating StorageClass: azurefile-csi"
+    
+    local yaml_file="${SCRIPT_DIR}/../src/deployments/azure-file-sc.yaml"
+    
+    if [[ ! -f "${yaml_file}" ]]; then
+        log_error "StorageClass YAML file not found: ${yaml_file}"
+        exit 1
+    fi
            
-    kubectl apply -f ../src/deployments/azure-file-sc.yaml
+    kubectl apply -f "${yaml_file}"
     
     if [[ $? -eq 0 ]]; then
         log_success "StorageClass 'azurefile-csi' created/updated successfully"
@@ -375,8 +333,15 @@ create_aks_storage_class() {
 create_aks_persistent_volume_claim() {
 
     log_info "Creating/updating PersistentVolumeClaim: my-azurefile"
+    
+    local yaml_file="${SCRIPT_DIR}/../src/deployments/azure-file-pvc.yaml"
+    
+    if [[ ! -f "${yaml_file}" ]]; then
+        log_error "PVC YAML file not found: ${yaml_file}"
+        exit 1
+    fi
 
-    kubectl apply -f ../src/deployments/azure-file-pvc.yaml
+    kubectl apply -f "${yaml_file}"
 
     if [[ $? -eq 0 ]]; then
         log_success "PersistentVolumeClaim 'my-azurefile' created/updated successfully"
@@ -407,9 +372,10 @@ main() {
     local subscription_id="${4}"
     local aks_cluster_name="${5}"
     local aks_oidc_issuer="${6}"
+    local identity_name="${7}"
+    local identity_id="${8}"
     
     # Generate resource names
-    local identity_name="${aks_cluster_name}-${IDENTITY_SUFFIX}"
     local service_account_name="${aks_cluster_name}-${SERVICE_ACCOUNT_SUFFIX}"
     local credential_name="${aks_cluster_name}-${CREDENTIAL_SUFFIX}"
     
@@ -429,11 +395,10 @@ main() {
     
     # Execute main provisioning steps
     configure_kubectl "${resource_group}" "${aks_cluster_name}"
-    create_managed_identity "${identity_name}" "${resource_group}" "${azure_location}" "${subscription_id}" "${azure_env_name}"
-    create_service_account "${service_account_name}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${USER_ASSIGNED_CLIENT_ID}" "${azure_env_name}"
+    create_service_account "${service_account_name}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${identity_id}" "${azure_env_name}"
     create_federated_credential "${credential_name}" "${identity_name}" "${resource_group}" "${subscription_id}" "${aks_oidc_issuer}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${service_account_name}" "${azure_env_name}"
-    #create_aks_storage_class
-    #create_aks_persistent_volume_claim
+    create_aks_storage_class
+    create_aks_persistent_volume_claim
 
     log_success "AKS post-provisioning completed successfully"
     log_success "Workload identity is now configured for pods using service account: ${service_account_name}"
@@ -445,7 +410,7 @@ main() {
     log_info "      image: your-image"
     log_info "      env:"
     log_info "      - name: AZURE_CLIENT_ID"
-    log_info "        value: \"${USER_ASSIGNED_CLIENT_ID}\""
+    log_info "        value: \"${identity_id}\""
 }
 
 # Execute main function if script is run directly (not sourced)

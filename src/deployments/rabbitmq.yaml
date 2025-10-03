@@ -14,7 +14,7 @@ spec:
       labels:
         app: sample-workload-identity
     spec:
-      serviceAccountName: aks-demo-2l4anlilygwcc-cluster-wi-sa # Replace with your service account name
+      serviceAccountName: aks-demo-qood42lqg3qgc-cluster-wi-sa # Replace with your service account name
       containers:
         - name: rabbitmq # Replace with your container name
           image: mcr.microsoft.com/mirror/docker/library/rabbitmq:3.10-management-alpine # Replace with your Docker image

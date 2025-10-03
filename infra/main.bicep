@@ -27,6 +27,18 @@ resource rg 'Microsoft.Resources/resourceGroups@2025-04-01' = {
 
 output AZURE_RESOURCE_GROUP_NAME string = rg.name
 
+module identity '../src/identity/managed-identity.bicep' = {
+  scope: rg
+  name: 'deployManagedIdentity'
+  params: {
+    location: location
+    tags: tags
+  }
+}
+
+output USER_ASSIGNED_IDENTITY_ID string = identity.outputs.USER_ASSIGNED_IDENTITY_ID
+output USER_ASSIGNED_IDENTITY_NAME string = identity.outputs.USER_ASSIGNED_IDENTITY_NAME
+
 module aksClusterModule '../src/aks-cluster.bicep' = {
   name: 'deployAksCluster'
   scope: rg

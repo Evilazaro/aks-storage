@@ -15,6 +15,8 @@ hooks:
               $AZURE_RESOURCE_GROUP_NAME \
               $AZURE_SUBSCRIPTION_ID \
               $AKS_CLUSTER_NAME \
-              $AKS_OIDC_ISSUER
+              $AKS_OIDC_ISSUER \
+              $USER_ASSIGNED_IDENTITY_NAME \
+              $USER_ASSIGNED_IDENTITY_ID
 
   
