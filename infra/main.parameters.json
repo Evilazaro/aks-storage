@@ -11,6 +11,12 @@
     },
     "location": {
       "value": "${AZURE_LOCATION}"
+    },
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "AZURE_RESOURCE_GROUP_NAME": {
+      "value": "${AZURE_RESOURCE_GROUP_NAME}"
     }
   }
 }

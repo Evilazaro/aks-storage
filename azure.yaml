@@ -1,8 +1,19 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-name: aks-storage
-
+name: aks-storage   
+      
 hooks:
   preprovision: 
     shell: sh
-    run: src/scripts/sskey.sh $AZURE_ENV_NAME $AZURE_LOCATION
+    run: ./infra/scripts/pre-provision.sh $AZURE_ENV_NAME $AZURE_LOCATION
+  postprovision: 
+    shell: sh
+    run: |
+      ./infra/scripts/post-provision.sh \
+              $AZURE_ENV_NAME \
+              $AZURE_LOCATION \
+              $AZURE_RESOURCE_GROUP_NAME \
+              $AZURE_SUBSCRIPTION_ID \
+              $AKS_CLUSTER_NAME \
+              $AKS_OIDC_ISSUER
+  

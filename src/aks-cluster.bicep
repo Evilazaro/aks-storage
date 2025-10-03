@@ -1,20 +1,23 @@
 @secure()
 param sshPublicKey string
 param adminUsername string = 'azureuser'
-param location string 
+param location string
+param tags object
 
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {
-  name: 'aks${uniqueString(resourceGroup().id)}'
+  name: 'aks-demo-${uniqueString(resourceGroup().id)}-cluster'
   location: location
   identity: {
     type: 'SystemAssigned'
   }
   kind: 'ManagedCluster'
   sku: {
-    name: 'Automatic'
+    name: 'Base'
     tier: 'Premium'
   }
+  tags: tags
   properties: {
+    dnsPrefix: 'aks-demo-${uniqueString(resourceGroup().id)}-cluster'
     enableRBAC: true
     oidcIssuerProfile: {
       enabled: true
@@ -57,3 +60,6 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {
     }
   }
 }
+
+output AKS_CLUSTER_NAME string = aksCluster.name
+output AKS_OIDC_ISSUER string = aksCluster.properties.oidcIssuerProfile.issuerURL
