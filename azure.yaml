@@ -6,17 +6,17 @@ hooks:
   preprovision: 
     shell: sh
     run: ./azd-hooks/pre-provision.sh $AZURE_ENV_NAME $AZURE_LOCATION
-  postprovision: 
-    shell: sh
-    run: |
-      ./azd-hooks/post-provision.sh \
-              $AZURE_ENV_NAME \
-              $AZURE_LOCATION \
-              $AZURE_RESOURCE_GROUP_NAME \
-              $AZURE_SUBSCRIPTION_ID \
-              $AKS_CLUSTER_NAME \
-              $AKS_OIDC_ISSUER \
-              $USER_ASSIGNED_IDENTITY_NAME \
-              $USER_ASSIGNED_IDENTITY_ID
+#   postprovision: 
+#     shell: sh
+#     run: |
+#       ./azd-hooks/post-provision.sh \
+#               $AZURE_ENV_NAME \
+#               $AZURE_LOCATION \
+#               $AZURE_RESOURCE_GROUP_NAME \
+#               $AZURE_SUBSCRIPTION_ID \
+#               $AKS_CLUSTER_NAME \
+#               $AKS_OIDC_ISSUER \
+#               $USER_ASSIGNED_IDENTITY_NAME \
+#               $USER_ASSIGNED_IDENTITY_ID
 
   

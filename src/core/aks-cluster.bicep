@@ -31,7 +31,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {
     agentPoolProfiles: [
       {
         name: 'systempool'
-        count: 1
+        count: 3
         vmSize: 'Standard_DS2_v2'
         osDiskSizeGB: 30
         osType: 'Linux'
@@ -40,7 +40,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {
       }
       {
         name: 'workloadpool'
-        count: 1
+        count: 3
         vmSize: 'Standard_DS2_v2'
         osDiskSizeGB: 30
         osType: 'Linux'
@@ -63,3 +63,27 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {
 
 output AKS_CLUSTER_NAME string = aksCluster.name
 output AKS_OIDC_ISSUER string = aksCluster.properties.oidcIssuerProfile.issuerURL
+
+module roleAssignment '../identity/role-assignment.bicep' = {
+  name: 'aksroleAssignmentDeployment'
+  scope: resourceGroup()
+  params: {
+    principalId: aksCluster.identity.principalId
+  }
+  dependsOn: [
+    aksCluster
+  ]
+}
+
+var rgName = 'MC_${resourceGroup().name}_aks-demo-${uniqueString(resourceGroup().id)}-cluster_${location}'
+
+module roleAssignment2 '../identity/role-assignment.bicep' = {
+  name: 'aksroleAssignmentDeployment2'
+  scope: resourceGroup(rgName)
+  params: {
+    principalId: aksCluster.identity.principalId
+  }
+  dependsOn: [
+    aksCluster
+  ]
+}

@@ -26,7 +26,7 @@ readonly TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 readonly DEFAULT_SERVICE_ACCOUNT_NAMESPACE="default"
 readonly WORKLOAD_IDENTITY_AUDIENCE="api://AzureADTokenExchange"
 readonly IDENTITY_SUFFIX="identity"
-readonly SERVICE_ACCOUNT_SUFFIX="wi-sa"
+readonly SERVICE_ACCOUNT_SUFFIX="-sa"
 readonly CREDENTIAL_SUFFIX="fed-cred"
 
 #==============================================================================
@@ -376,7 +376,7 @@ main() {
     local identity_id="${8}"
     
     # Generate resource names
-    local service_account_name="${aks_cluster_name}-${SERVICE_ACCOUNT_SUFFIX}"
+    local service_account_name="aks-demo-cluster-wi${SERVICE_ACCOUNT_SUFFIX}"
     local credential_name="${aks_cluster_name}-${CREDENTIAL_SUFFIX}"
     
     log_info "Configuration:"
@@ -397,8 +397,8 @@ main() {
     configure_kubectl "${resource_group}" "${aks_cluster_name}"
     create_service_account "${service_account_name}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${identity_id}" "${azure_env_name}"
     create_federated_credential "${credential_name}" "${identity_name}" "${resource_group}" "${subscription_id}" "${aks_oidc_issuer}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${service_account_name}" "${azure_env_name}"
-    create_aks_storage_class
-    create_aks_persistent_volume_claim
+    #create_aks_storage_class
+    #create_aks_persistent_volume_claim
 
     log_success "AKS post-provisioning completed successfully"
     log_success "Workload identity is now configured for pods using service account: ${service_account_name}"
