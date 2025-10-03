@@ -357,6 +357,37 @@ create_federated_credential() {
     update_env_file "${env_name}" "FEDERATED_IDENTITY_CREDENTIAL_NAME" "${credential_name}"
 }
 
+create_aks_storage_class() {
+        
+    log_info "Creating/updating StorageClass: azurefile-csi"
+           
+    kubectl apply -f ../src/deployments/azure-file-sc.yaml
+    
+    if [[ $? -eq 0 ]]; then
+        log_success "StorageClass 'azurefile-csi' created/updated successfully"
+    else
+        log_error "Failed to create/update StorageClass"
+        exit 1
+    fi
+        
+}
+
+create_aks_persistent_volume_claim() {
+
+    log_info "Creating/updating PersistentVolumeClaim: my-azurefile"
+
+    kubectl apply -f ../src/deployments/azure-file-pvc.yaml
+
+    if [[ $? -eq 0 ]]; then
+        log_success "PersistentVolumeClaim 'my-azurefile' created/updated successfully"
+    else
+        log_error "Failed to create/update PersistentVolumeClaim 'my-azurefile'"
+        exit 1
+    fi
+        
+}
+
+
 #==============================================================================
 # MAIN EXECUTION
 #==============================================================================
@@ -401,7 +432,9 @@ main() {
     create_managed_identity "${identity_name}" "${resource_group}" "${azure_location}" "${subscription_id}" "${azure_env_name}"
     create_service_account "${service_account_name}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${USER_ASSIGNED_CLIENT_ID}" "${azure_env_name}"
     create_federated_credential "${credential_name}" "${identity_name}" "${resource_group}" "${subscription_id}" "${aks_oidc_issuer}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${service_account_name}" "${azure_env_name}"
-    
+    #create_aks_storage_class
+    #create_aks_persistent_volume_claim
+
     log_success "AKS post-provisioning completed successfully"
     log_success "Workload identity is now configured for pods using service account: ${service_account_name}"
     log_info "To use workload identity in your pods, add the following to your pod spec:"

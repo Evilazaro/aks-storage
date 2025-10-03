@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-workload-identity
+  namespace: default
+  labels:
+    azure.workload.identity/use: "true"  # Required. Only pods with this label can use workload identity.
+spec:
+  selector:
+    matchLabels:
+      app: sample-workload-identity
+  template:
+    metadata:
+      labels:
+        app: sample-workload-identity
+    spec:
+      serviceAccountName: aks-demo-2l4anlilygwcc-cluster-wi-sa # Replace with your service account name
+      containers:
+        - name: rabbitmq # Replace with your container name
+          image: mcr.microsoft.com/mirror/docker/library/rabbitmq:3.10-management-alpine # Replace with your Docker image
+          ports:
+            - containerPort: 5672
+              name: rabbitmq-amqp
+            - containerPort: 15672
+              name: rabbitmq-http
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: "username"
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "password"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /mnt/azure
+              name: volume
+              readOnly: false
+      volumes:
+        - name: volume
+          persistentVolumeClaim:
+            claimName: my-azurefile
