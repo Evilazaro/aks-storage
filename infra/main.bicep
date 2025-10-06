@@ -40,18 +40,3 @@ module aksClusterModule '../src/core/aks-cluster.bicep' = {
 
 output AKS_CLUSTER_NAME string = aksClusterModule.outputs.AKS_CLUSTER_NAME
 output AKS_OIDC_ISSUER string = aksClusterModule.outputs.AKS_OIDC_ISSUER
-
-module identity '../src/identity/managed-identity.bicep' = {
-  scope: rg
-  name: 'deployManagedIdentity'
-  params: {
-    location: location
-    tags: tags
-  }
-  dependsOn: [
-    aksClusterModule
-  ]
-}
-
-output USER_ASSIGNED_IDENTITY_ID string = identity.outputs.USER_ASSIGNED_IDENTITY_ID
-output USER_ASSIGNED_IDENTITY_NAME string = identity.outputs.USER_ASSIGNED_IDENTITY_NAME
