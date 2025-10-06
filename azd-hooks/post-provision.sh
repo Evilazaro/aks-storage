@@ -3,11 +3,7 @@
 #==============================================================================
 # AKS Post-Provision Script
 # 
-# Purpose: Post-provisioning setup for Azure Kubernetes Service        if timeout 60 az aks get-credentials \
-        --resource-group "${resource_group}" \
-        --name "${cluster_name}" \
-        --overwrite-existing \
-        --output none; then) cluster
+# Purpose: Post-provisioning setup for Azure Kubernetes Service (AKS) cluster
 # This script configures workload identity by creating managed identities,
 # service accounts, and federated identity credentials for secure pod authentication
 #

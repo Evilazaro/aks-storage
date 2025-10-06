@@ -13,7 +13,7 @@ spec:
   storageClassName: azurefile-csi
   csi:
     driver: file.csi.azure.com
-    volumeHandle: "{resource-group-name}#{account-name}#{file-share-name}"  # make sure this volumeid is unique for every identical share in the cluster
+    volumeHandle: "{resource-group-name}#{account-name}#{file-share-name}"  # make sure this volumeid is unique for every identical share in the cluster. Format: {resource-group-name}#{account-name}#{file-share-name}
     volumeAttributes:
       shareName: aksshare
     nodeStageSecretRef:
