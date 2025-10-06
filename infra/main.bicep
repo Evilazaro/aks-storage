@@ -51,6 +51,12 @@ module aksClusterModule '../src/core/aks-cluster.bicep' = {
   }
 }
 
+@description('User Assigned Identity Name for AKS to access Azure Storage resources.')
+output USER_ASSIGNED_IDENTITY_NAME string = aksClusterModule.outputs.USER_ASSIGNED_IDENTITY_NAME
+
+@description('User assigned identity for AKS to access Azure Storage resources.')
+output USER_ASSIGNED_IDENTITY_ID string = aksClusterModule.outputs.USER_ASSIGNED_IDENTITY_ID
+
 @description('The name of the provisioned Azure Storage Account.')
 output AZURE_STORAGE_ACCOUNT_NAME string = aksClusterModule.outputs.AZURE_STORAGE_ACCOUNT_NAME
 

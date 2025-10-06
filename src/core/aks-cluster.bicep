@@ -11,12 +11,27 @@ param location string
 @description('Tags to be applied to the AKS cluster for resource organization.')
 param tags object
 
+@description('User assigned identity for AKS to access Azure Storage resources.')
+resource aksUserAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: 'aksDemoUserIdentity${uniqueString(resourceGroup().id)}'
+  location: location
+}
+
+@description('User Assigned Identity Name for AKS to access Azure Storage resources.')
+output USER_ASSIGNED_IDENTITY_NAME string = aksUserAssignedIdentity.name
+
+@description('User assigned identity for AKS to access Azure Storage resources.')
+output USER_ASSIGNED_IDENTITY_ID string = aksUserAssignedIdentity.properties.clientId
+
 @description('Azure Kubernetes Service (AKS) cluster for storage integration demo.')
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {
   name: 'aks-demo-${uniqueString(resourceGroup().id)}-cluster'
   location: location
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${aksUserAssignedIdentity.id}': {}
+    }
   }
   kind: 'ManagedCluster'
   sku: {
@@ -75,6 +90,12 @@ output AKS_CLUSTER_NAME string = aksCluster.name
 @description('The OIDC issuer URL for the AKS cluster.')
 output AKS_OIDC_ISSUER string = aksCluster.properties.oidcIssuerProfile.issuerURL
 
+@description('The client ID of the AKS managed identity.')
+output AKS_MANAGED_IDENTITY_CLIENT_ID string = aksCluster.identity.principalId
+
+@description('The principal ID of the AKS managed identity.')
+output AKS_MANAGED_IDENTITY_PRINCIPAL_ID string = aksCluster.identity.principalId
+
 @description('Deploys the storage account used for AKS file share integration.')
 module storageAccount 'storage-account.bicep' = {
   params: {
@@ -91,6 +112,6 @@ module roleAssignment '../identity/role-assignment.bicep' = {
   name: 'aksroleAssignmentDeployment'
   scope: resourceGroup()
   params: {
-    principalId: aksCluster.identity.principalId
+    principalId: aksUserAssignedIdentity.properties.principalId
   }
 }

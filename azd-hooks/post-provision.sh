@@ -3,7 +3,11 @@
 #==============================================================================
 # AKS Post-Provision Script
 # 
-# Purpose: Post-provisioning setup for Azure Kubernetes Service (AKS) cluster
+# Purpose: Post-provisioning setup for Azure Kubernetes Service        if timeout 60 az aks get-credentials \
+        --resource-group "${resource_group}" \
+        --name "${cluster_name}" \
+        --overwrite-existing \
+        --output none; then) cluster
 # This script configures workload identity by creating managed identities,
 # service accounts, and federated identity credentials for secure pod authentication
 #
@@ -147,7 +151,9 @@ check_azure_login() {
     
     local account_info
     account_info=$(az account show --query "{subscriptionId:id, subscriptionName:name}" -o json)
-    log_info "Authenticated to Azure subscription: $(echo "${account_info}" | jq -r '.subscriptionName // .subscriptionId')"
+    local subscription_name
+    subscription_name=$(echo "${account_info}" | jq -r '.subscriptionName // .subscriptionId')
+    log_info "Authenticated to Azure subscription: ${subscription_name}"
 }
 
 # Update environment file with key-value pair (avoiding duplicates)
@@ -164,7 +170,12 @@ update_env_file() {
     
     # Remove existing entry to avoid duplicates
     if [[ -f "${env_file}" ]]; then
-        sed -i "/^${key}=/d" "${env_file}" 2>/dev/null || true
+        # Use portable sed syntax for both Linux and macOS
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' "/^${key}=/d" "${env_file}" 2>/dev/null || true
+        else
+            sed -i "/^${key}=/d" "${env_file}" 2>/dev/null || true
+        fi
     fi
     
     # Append new entry
@@ -196,11 +207,11 @@ configure_kubectl() {
         exit 1
     fi
     
-    # Verify kubectl connectivity
-    if kubectl cluster-info >/dev/null 2>&1; then
+    # Verify kubectl connectivity with timeout
+    if timeout 30 kubectl cluster-info >/dev/null 2>&1; then
         log_success "Kubectl connectivity verified"
     else
-        log_warning "kubectl configured but cluster connectivity could not be verified"
+        log_warning "kubectl configured but cluster connectivity could not be verified (may be due to network latency)"
     fi
 }
 
@@ -220,12 +231,12 @@ create_service_account() {
         
         # Update annotation if needed
         local current_client_id
-        current_client_id=$(kubectl get serviceaccount "${service_account_name}" -n "${namespace}" \
+        current_client_id=$(timeout 30 kubectl get serviceaccount "${service_account_name}" -n "${namespace}" \
             -o jsonpath='{.metadata.annotations.azure\.workload\.identity/client-id}' 2>/dev/null || echo "")
         
         if [[ "${current_client_id}" != "${client_id}" ]]; then
             log_info "Updating service account annotation with new client ID"
-            kubectl annotate serviceaccount "${service_account_name}" -n "${namespace}" \
+            timeout 30 kubectl annotate serviceaccount "${service_account_name}" -n "${namespace}" \
                 "azure.workload.identity/client-id=${client_id}" --overwrite
             log_success "Service account annotation updated"
         else
@@ -235,7 +246,7 @@ create_service_account() {
         log_info "Creating service account '${service_account_name}'"
         
         # Create service account with workload identity annotation
-        if cat <<EOF | kubectl apply -f -
+        if cat <<EOF | timeout 60 kubectl apply -f -
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -308,51 +319,6 @@ create_federated_credential() {
     update_env_file "${env_name}" "FEDERATED_IDENTITY_CREDENTIAL_NAME" "${credential_name}"
 }
 
-create_aks_storage_class() {
-        
-    log_info "Creating/updating StorageClass: azurefile-csi"
-    
-    local yaml_file="${SCRIPT_DIR}/../src/deployments/azure-file-sc.yaml"
-    
-    if [[ ! -f "${yaml_file}" ]]; then
-        log_error "StorageClass YAML file not found: ${yaml_file}"
-        exit 1
-    fi
-           
-    kubectl apply -f "${yaml_file}"
-    
-    if [[ $? -eq 0 ]]; then
-        log_success "StorageClass 'azurefile-csi' created/updated successfully"
-    else
-        log_error "Failed to create/update StorageClass"
-        exit 1
-    fi
-        
-}
-
-create_aks_persistent_volume_claim() {
-
-    log_info "Creating/updating PersistentVolumeClaim: my-azurefile"
-    
-    local yaml_file="${SCRIPT_DIR}/../src/deployments/azure-file-pvc.yaml"
-    
-    if [[ ! -f "${yaml_file}" ]]; then
-        log_error "PVC YAML file not found: ${yaml_file}"
-        exit 1
-    fi
-
-    kubectl apply -f "${yaml_file}"
-
-    if [[ $? -eq 0 ]]; then
-        log_success "PersistentVolumeClaim 'my-azurefile' created/updated successfully"
-    else
-        log_error "Failed to create/update PersistentVolumeClaim 'my-azurefile'"
-        exit 1
-    fi
-        
-}
-
-
 #==============================================================================
 # MAIN EXECUTION
 #==============================================================================
@@ -383,7 +349,7 @@ main() {
     log_info "  Environment: ${azure_env_name}"
     log_info "  Location: ${azure_location}"
     log_info "  Resource Group: ${resource_group}"
-    log_info "  Subscription: ${subscription_id:0:8}..."
+    log_info "  Subscription: ${subscription_id:0:8}..." 2>/dev/null || log_info "  Subscription: [redacted]"
     log_info "  AKS Cluster: ${aks_cluster_name}"
     log_info "  Identity Name: ${identity_name}"
     log_info "  Service Account: ${service_account_name}"
@@ -397,8 +363,6 @@ main() {
     configure_kubectl "${resource_group}" "${aks_cluster_name}"
     create_service_account "${service_account_name}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${identity_id}" "${azure_env_name}"
     create_federated_credential "${credential_name}" "${identity_name}" "${resource_group}" "${subscription_id}" "${aks_oidc_issuer}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${service_account_name}" "${azure_env_name}"
-    #create_aks_storage_class
-    #create_aks_persistent_volume_claim
 
     log_success "AKS post-provisioning completed successfully"
     log_success "Workload identity is now configured for pods using service account: ${service_account_name}"
