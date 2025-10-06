@@ -11,6 +11,12 @@
 *.sln.docstates
 *.env
 
+# Kubernetes secrets and sensitive files
+**/secret.yaml
+**/secrets.yaml
+**/*secret*.yaml
+**/*secrets*.yaml
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

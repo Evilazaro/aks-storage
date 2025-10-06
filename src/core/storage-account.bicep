@@ -6,7 +6,7 @@ param tags object
 
 @description('Azure Storage Account used for AKS file share integration.')
 resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
-  name: 'contoso${uniqueString(resourceGroup().id)}'
+  name: 'contosoaksstorage'
   location: location
   tags: tags
   sku: {
@@ -15,26 +15,52 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   kind: 'StorageV2'
   properties: {
     accessTier: 'Hot'
+    defaultToOAuthAuthentication: true
+    minimumTlsVersion: 'TLS1_2'
+    allowSharedKeyAccess: true
+    networkAcls: {
+      bypass: 'AzureServices'
+      virtualNetworkRules: []
+      ipRules: []
+      defaultAction: 'Allow'
+    }
+    supportsHttpsTrafficOnly: true
+    encryption: {
+      services: {
+        file: {
+          keyType: 'Account'
+          enabled: true
+        }
+        blob: {
+          keyType: 'Account'
+          enabled: true
+        }
+      }
+      keySource: 'Microsoft.Storage'
+    }
   }
 }
 
 @description('The name of the provisioned Azure Storage Account.')
 output AZURE_STORAGE_ACCOUNT_NAME string = storageAccount.name
 
-@description('File service resource for the storage account, enabling file shares and retention policy.')
-resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2025-01-01' = {
-  name: 'default'
-  parent: storageAccount
-  properties: {
-    shareDeleteRetentionPolicy: {
-      enabled: true
-      days: 7
-    }
-  }
-}
+// @description('File service resource for the storage account, enabling file shares and retention policy.')
+// resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2025-01-01'  = {
+//   name: 'default'
+//   parent: storageAccount
+//   properties: {
+    
+//   }
+// }
 
-@description('Azure File Share used by AKS workloads for persistent storage.')
-resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2025-01-01' = {
-  name: 'aksfileshare'
-  parent: fileService
-}
+// @description('Azure File Share used by AKS workloads for persistent storage.')
+// resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2025-01-01' = {
+//   name: 'aksfileshare'
+//   parent: fileService
+//   properties: {
+//     accessTier: 'TransactionOptimized'
+//     shareQuota: 5
+
+//   }
+
+// }

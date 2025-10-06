@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: azurefile-static-pv
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+spec:
+  capacity:
+    storage: 1024Gi
+  accessModes: [ "ReadWriteMany" ]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: azurefile-csi
+  mountOptions:
+    - dir_mode=0777
+    - file_mode=0777
+    - uid=0
+    - gid=0
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    - nobrl
+  csi:
+    driver: file.csi.azure.com
+    readOnly: false
+    # {resource-group}#{account-name}#{share-name}
+    # MC_contoso-aks-uat-eastus2-RG_aks-demo-khfkx467bemki-cluster_eastus2#f2b9a742d22f242d9a185a7#pvc-c9122901-4cb3-416d-8b29-e16028b48316###default
+    volumeHandle: "MC_contoso-aks-uat-eastus2-RG_aks-demo-khfkx467bemki-cluster_eastus2#contosoaksstorage#aksfileshare"
+    volumeAttributes:
+      shareName: aksfileshare
+      storageAccountName: contosoaksstorage
+    nodeStageSecretRef:
+      name: azure-secret
+      namespace: default
+    nodePublishSecretRef:
+      name: azure-secret
+      namespace: default
+    nodeExpandSecretRef:
+      name: azure-secret
+      namespace: default
+    

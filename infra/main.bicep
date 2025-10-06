@@ -41,7 +41,7 @@ output AZURE_RESOURCE_GROUP_NAME string = rg.name
 
 @description('Deploys the AKS cluster and invokes storage integration modules within the resource group.')
 module aksClusterModule '../src/core/aks-cluster.bicep' = {
-  name: 'deployAksCluster'
+  name: 'AKSCluster-Deployment'
   scope: rg
   params: {
     sshPublicKey: sshPublicKey
@@ -57,11 +57,14 @@ output USER_ASSIGNED_IDENTITY_NAME string = aksClusterModule.outputs.USER_ASSIGN
 @description('User assigned identity for AKS to access Azure Storage resources.')
 output USER_ASSIGNED_IDENTITY_ID string = aksClusterModule.outputs.USER_ASSIGNED_IDENTITY_ID
 
-@description('The name of the provisioned Azure Storage Account.')
-output AZURE_STORAGE_ACCOUNT_NAME string = aksClusterModule.outputs.AZURE_STORAGE_ACCOUNT_NAME
-
 @description('The name of the provisioned AKS cluster.')
 output AKS_CLUSTER_NAME string = aksClusterModule.outputs.AKS_CLUSTER_NAME
 
 @description('The OIDC issuer URL for the AKS cluster.')
 output AKS_OIDC_ISSUER string = aksClusterModule.outputs.AKS_OIDC_ISSUER
+
+@description('The resource group name for the AKS cluster nodes.')
+output NODE_RESOURCE_GROUP_NAME string = aksClusterModule.outputs.NODE_RESOURCE_GROUP_NAME
+
+@description('The name of the provisioned Azure Storage Account.')
+output AZURE_STORAGE_ACCOUNT_NAME string = aksClusterModule.outputs.AZURE_STORAGE_ACCOUNT_NAME

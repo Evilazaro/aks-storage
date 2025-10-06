@@ -14,7 +14,7 @@ spec:
       labels:
         app: sample-workload-identity
     spec:
-      #serviceAccountName: aks-demo-cluster-wi-sa 
+      serviceAccountName: aks-demo-cluster-wi-sa
       containers:
         - name: rabbitmq # Replace with your container name
           image: mcr.microsoft.com/mirror/docker/library/rabbitmq:3.10-management-alpine # Replace with your Docker image
@@ -37,9 +37,10 @@ spec:
               memory: 256Mi
           volumeMounts:
             - mountPath: /mnt/azure
-              name: volume
+              name: azurefile-volume
               readOnly: false
       volumes:
-        - name: volume
+        - name: azurefile-volume
           persistentVolumeClaim:
-            claimName: azurefile
+            claimName: azurefile-static-pvc
+

@@ -7,8 +7,8 @@
 # This script configures workload identity by creating managed identities,
 # service accounts, and federated identity credentials for secure pod authentication
 #
-# Usage: ./post-provision.sh <AZURE_ENV_NAME> <AZURE_LOCATION> <RESOURCE_GROUP> <SUBSCRIPTION_ID> <AKS_CLUSTER_NAME> <AKS_OIDC_ISSUER>
-# Example: ./post-provision.sh dev eastus2 rg-aks sub-123 my-aks-cluster https://oidc.issuer.url
+# Usage: ./post-provision.sh <AZURE_ENV_NAME> <AZURE_LOCATION> <RESOURCE_GROUP> <SUBSCRIPTION_ID> <AKS_CLUSTER_NAME> <AKS_OIDC_ISSUER> <IDENTITY_NAME> <IDENTITY_ID> <AZURE_STORAGE_ACCOUNT_NAME>
+# Example: ./post-provision.sh dev eastus2 rg-aks sub-123 my-aks-cluster https://oidc.issuer.url my-identity client-id storage-account
 #==============================================================================
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
@@ -60,28 +60,29 @@ log_success() {
 # Display usage information
 usage() {
     cat << EOF
-Usage: ${SCRIPT_NAME} <AZURE_ENV_NAME> <AZURE_LOCATION> <RESOURCE_GROUP> <SUBSCRIPTION_ID> <AKS_CLUSTER_NAME> <AKS_OIDC_ISSUER> <IDENTITY_NAME> <IDENTITY_ID>
+Usage: ${SCRIPT_NAME} <AZURE_ENV_NAME> <AZURE_LOCATION> <RESOURCE_GROUP> <SUBSCRIPTION_ID> <AKS_CLUSTER_NAME> <AKS_OIDC_ISSUER> <IDENTITY_NAME> <IDENTITY_ID> <AZURE_STORAGE_ACCOUNT_NAME>
 
 Arguments:
-    AZURE_ENV_NAME      Environment name for Azure deployment
-    AZURE_LOCATION      Azure region for resource deployment
-    RESOURCE_GROUP      Azure resource group name
-    SUBSCRIPTION_ID     Azure subscription ID
-    AKS_CLUSTER_NAME    Name of the AKS cluster
-    AKS_OIDC_ISSUER     OIDC issuer URL from AKS cluster
-    IDENTITY_NAME       Name of the managed identity
-    IDENTITY_ID         Client ID of the managed identity
+    AZURE_ENV_NAME              Environment name for Azure deployment
+    AZURE_LOCATION              Azure region for resource deployment
+    RESOURCE_GROUP              Azure resource group name
+    SUBSCRIPTION_ID             Azure subscription ID
+    AKS_CLUSTER_NAME            Name of the AKS cluster
+    AKS_OIDC_ISSUER             OIDC issuer URL from AKS cluster
+    IDENTITY_NAME               Name of the managed identity
+    IDENTITY_ID                 Client ID of the managed identity
+    AZURE_STORAGE_ACCOUNT_NAME  Name of the Azure storage account
 
 Examples:
-    ${SCRIPT_NAME} dev eastus2 rg-aks-dev 12345678-1234-1234-1234-123456789012 my-aks-cluster https://eastus2.oic.prod-aks.azure.com/12345678-1234-1234-1234-123456789012/ my-identity 87654321-4321-4321-4321-210987654321
+    ${SCRIPT_NAME} dev eastus2 rg-aks-dev 12345678-1234-1234-1234-123456789012 my-aks-cluster https://eastus2.oic.prod-aks.azure.com/12345678-1234-1234-1234-123456789012/ my-identity 87654321-4321-4321-4321-210987654321 mystorageaccount
 
 EOF
 }
 
 # Validate input parameters
 validate_parameters() {
-    if [[ $# -lt 8 ]]; then
-        log_error "Insufficient arguments provided (expected 8, got $#)"
+    if [[ $# -lt 9 ]]; then
+        log_error "Insufficient arguments provided (expected 9, got $#)"
         usage
         exit 1
     fi
@@ -94,6 +95,7 @@ validate_parameters() {
     local aks_oidc_issuer="${6:-}"
     local identity_name="${7:-}"
     local identity_id="${8:-}"
+    local azure_storage_account_name="${9:-}"
 
     # Check for empty parameters
     local empty_params=()
@@ -105,6 +107,7 @@ validate_parameters() {
     [[ -z "${aks_oidc_issuer}" ]] && empty_params+=("AKS_OIDC_ISSUER")
     [[ -z "${identity_name}" ]] && empty_params+=("IDENTITY_NAME")
     [[ -z "${identity_id}" ]] && empty_params+=("IDENTITY_ID")
+    [[ -z "${azure_storage_account_name}" ]] && empty_params+=("AZURE_STORAGE_ACCOUNT_NAME")
 
     if [[ ${#empty_params[@]} -gt 0 ]]; then
         log_error "The following parameters cannot be empty: ${empty_params[*]}"
@@ -315,6 +318,33 @@ create_federated_credential() {
     update_env_file "${env_name}" "FEDERATED_IDENTITY_CREDENTIAL_NAME" "${credential_name}"
 }
 
+create_azure_storage_secret() {
+  local resource_group="$1"
+  local cluster_name="$2"
+  local storage_account="$3"
+  local secret_name="$4"
+  local namespace="$5"
+  
+  echo "Getting node resource group for cluster: $cluster_name"
+  local node_rg=$(az aks show --resource-group "$resource_group" --name "$cluster_name" --query nodeResourceGroup -o tsv)
+  echo "Node Resource Group Name is: $node_rg"
+  
+  echo "Getting storage account key for: $storage_account"
+  local storage_key=$(az storage account keys list --resource-group "$node_rg" --account-name "$storage_account" --query "[0].value" -o tsv)
+  echo "Storage key retrieved successfully"
+  
+  echo "Creating Kubernetes secret: $secret_name"
+  kubectl create secret generic "$secret_name" \
+    --from-literal=azurestorageaccountname="$storage_account" \
+    --from-literal=azurestorageaccountkey="$storage_key" \
+    --namespace="$namespace"
+  
+  echo "Displaying secret YAML:"
+  kubectl get secret "$secret_name" -n "$namespace" -o yaml
+  echo "Kubernetes secret '$secret_name' created successfully in namespace '$namespace'"
+}
+
+
 #==============================================================================
 # MAIN EXECUTION
 #==============================================================================
@@ -336,6 +366,7 @@ main() {
     local aks_oidc_issuer="${6}"
     local identity_name="${7}"
     local identity_id="${8}"
+    local azure_storage_account_name="${9}"
     
     # Generate resource names
     local service_account_name="aks-demo-cluster-wi${SERVICE_ACCOUNT_SUFFIX}"
@@ -359,6 +390,7 @@ main() {
     configure_kubectl "${resource_group}" "${aks_cluster_name}"
     create_service_account "${service_account_name}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${identity_id}" "${azure_env_name}"
     create_federated_credential "${credential_name}" "${identity_name}" "${resource_group}" "${subscription_id}" "${aks_oidc_issuer}" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}" "${service_account_name}" "${azure_env_name}"
+    create_azure_storage_secret "${resource_group}" "${aks_cluster_name}" "${azure_storage_account_name}" "azure-secret" "${DEFAULT_SERVICE_ACCOUNT_NAMESPACE}"
 
     log_success "AKS post-provisioning completed successfully"
     log_success "Workload identity is now configured for pods using service account: ${service_account_name}"

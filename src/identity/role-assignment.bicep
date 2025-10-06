@@ -3,8 +3,8 @@ param principalId string
 
 @description('List of role definition IDs (GUIDs) to assign to the principal at resource group scope.')
 var roleAssignments = [
-  '17d1049b-9a84-46fb-8f53-869881c3d3ab' // Storage File Data Privileged Contributor
-  '69566ab7-960f-475b-8e7c-b3118f30c6bd' // Storage File Data SMB Share Contributor
+  'b8eda974-7b85-4f76-af95-65846b26df6d'
+  '69566ab7-960f-475b-8e7c-b3118f30c6bd' 
 ]
 
 @description('Creates role assignments for the specified principal across the listed role definitions.')
