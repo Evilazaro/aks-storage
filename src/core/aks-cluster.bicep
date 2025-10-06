@@ -74,6 +74,8 @@ module storageAccount 'storage-account.bicep' = {
   ]
 }
 
+output AZURE_STORAGE_ACCOUNT_NAME string = storageAccount.outputs.AZURE_STORAGE_ACCOUNT_NAME
+
 module roleAssignment '../identity/role-assignment.bicep' = {
   name: 'aksroleAssignmentDeployment'
   scope: resourceGroup()

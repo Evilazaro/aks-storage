@@ -38,5 +38,6 @@ module aksClusterModule '../src/core/aks-cluster.bicep' = {
   }
 }
 
+output AZURE_STORAGE_ACCOUNT_NAME string = aksClusterModule.outputs.AZURE_STORAGE_ACCOUNT_NAME
 output AKS_CLUSTER_NAME string = aksClusterModule.outputs.AKS_CLUSTER_NAME
 output AKS_OIDC_ISSUER string = aksClusterModule.outputs.AKS_OIDC_ISSUER

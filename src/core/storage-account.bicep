@@ -14,6 +14,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   }
 }
 
+output AZURE_STORAGE_ACCOUNT_NAME string = storageAccount.name
+
 resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2025-01-01' = {
   name: 'default'
   parent: storageAccount
